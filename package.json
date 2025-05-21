@@ -1,0 +1,8 @@
+{
+  "name": "penn-logo-ascii",
+  "version": "1.0.0",
+  "description": "Penn Logo ASCII Art using Three.js",
+  "dependencies": {
+    "three": "^0.162.0"
+  }
+} 

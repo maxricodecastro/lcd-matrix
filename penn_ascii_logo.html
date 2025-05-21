@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Penn Logo ASCII 3‑D</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: white;
+      font-family: monospace;
+    }
+    #error {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: red;
+      display: none;
+    }
+    #clock {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #000000;
+      font-size: 4rem;  /* 128px equivalent */
+      font-weight: bold;
+      font-family: 'Courier New', Courier, monospace;
+      z-index: 1000;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    }
+  </style>
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <div id="clock"></div>
+  <div id="error"></div>
+  <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+    import { AsciiEffect } from 'three/addons/effects/AsciiEffect.js';
+
+    // Easy to modify colors
+    const COLORS = {
+      background: '#FFFFFF',  // White
+      object: '#C640B9'      // Purple
+    };
+
+    console.log('Script started');
+
+    // Scene & Camera
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(COLORS.background);
+    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 1000);
+    camera.position.set(0, 5, 12);
+
+    // Renderer ➜ ASCII effect
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const effect = new AsciiEffect(renderer, ' .,:;+*?%$#@', {
+      invert: true,      // Invert back to true for dark characters on light background
+      resolution: 0.2,
+      scale: 1.0,
+      contrast: 0.0001
+    });
+    effect.domElement.setAttribute('willReadFrequently', 'true');
+    effect.setSize(innerWidth, innerHeight);
+    effect.domElement.style.color = COLORS.object;  // Purple characters
+    effect.domElement.style.backgroundColor = COLORS.background;
+    document.body.appendChild(effect.domElement);
+
+    // Set body background to match
+    document.body.style.backgroundColor = COLORS.background;
+
+    // Enhanced lighting setup
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    directionalLight.position.set(5, 5, 2);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 500;
+    scene.add(directionalLight);
+
+    // Add rim light for better edge definition
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    rimLight.position.set(-5, 0, -5);
+    scene.add(rimLight);
+
+    // Add fill light
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    fillLight.position.set(-2, -2, 4);
+    scene.add(fillLight);
+
+    // Very subtle ambient light
+    scene.add(new THREE.AmbientLight(0xffffff, 0.1));
+
+    // Renderer settings
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Controls
+    const controls = new OrbitControls(camera, effect.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Update test cube color
+    const testCube = new THREE.Mesh(
+      new THREE.BoxGeometry(20, 20, 20),
+      new THREE.MeshPhongMaterial({ color: COLORS.object })
+    );
+    scene.add(testCube);
+    console.log('Test cube added');
+
+    // Animation loop
+    let time = 0;  // Track animation time
+    const autoRotateSpeed = 0.01;  // Very subtle rotation speed
+    
+    function animate() {
+      requestAnimationFrame(animate);
+      time += autoRotateSpeed;
+      
+      // Add subtle movement to the controls target
+      const radius = 0.5;  // Small radius for subtle movement
+      const targetOffset = new THREE.Vector3(
+        Math.sin(time) * radius,
+        Math.sin(time * 0.5) * 0.2,  // Subtle up/down
+        Math.cos(time) * radius
+      );
+      controls.target.copy(targetOffset);
+      
+      controls.update();
+      effect.render(scene, camera);
+    }
+    animate();
+
+    // Load the FBX file
+    const loader = new FBXLoader();
+    console.log('Loading FBX file...');
+    
+    loader.load(
+      'abstract2.fbx',
+      (object) => {
+        console.log('FBX loaded successfully:', object);
+        
+        // Apply material to all meshes
+        object.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.material = new THREE.MeshPhongMaterial({
+              color: COLORS.object,
+              side: THREE.DoubleSide,
+              flatShading: false,
+              shininess: 80,
+              specular: 0x666666,
+              reflectivity: 1,
+              emissive: 0x000000,
+              emissiveIntensity: 0.1,
+              metalness: 0.5,
+              roughness: 0.5
+            });
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        // Scale and position the model
+        object.scale.set(0.7, 0.7, 0.7);
+        
+        // Center the model
+        const box = new THREE.Box3().setFromObject(object);
+        const center = box.getCenter(new THREE.Vector3());
+        object.position.sub(center);
+        
+        scene.remove(testCube);
+        scene.add(object);
+        console.log('Model added to scene');
+      },
+      (xhr) => {
+        console.log('Loading progress:', (xhr.loaded / xhr.total * 100) + '%');
+      },
+      (error) => {
+        console.error('Error loading FBX:', error);
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = 'Error loading FBX: ' + error.message;
+      }
+    );
+
+    // Handle resizes
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      effect.setSize(innerWidth, innerHeight);
+    });
+  </script>
+  <script>
+    // Update clock
+    function updateClock() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', { 
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      document.getElementById('clock').textContent = timeString;
+    }
+    
+    // Update clock immediately and then every second
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
+</body>
+</html> 
