@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Popping Bouncing Balls</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+    }
+    #world {
+      display: block;     /* removes scrollbar gap */
+      background: #fff;   /* white background */
+    }
+  </style>
+</head>
+<body>
+  <canvas id="world"></canvas>
+
+  <!-- Physics engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <script>
+    // -------------------------------------------------
+    // 1. Boilerplate: create engine, world & renderer
+    // -------------------------------------------------
+    const { Engine, Render, Runner, Bodies, Body, Composite } = Matter;
+
+    const engine = Engine.create();
+    const world  = engine.world;
+
+    const canvas = document.getElementById('world');
+    const resize = () => {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const render = Render.create({
+      canvas,
+      engine,
+      options: {
+        width:  canvas.width,
+        height: canvas.height,
+        wireframes: false,      // show filled shapes
+        background: '#ffffff'
+      }
+    });
+
+    Render.run(render);
+    const runner = Runner.create();
+    Runner.run(runner, engine);
+
+    // ------------------------------------------
+    // 2. Walls so the balls stay on the screen
+    // ------------------------------------------
+    const wallThickness = 100;            // thick so they never peek through
+    let explosionTriggered = false;
+    let walls = []; // Store wall bodies for later removal
+
+    // Replace your wall creation code with this, so you can remove them later:
+    walls = [
+      Bodies.rectangle(canvas.width / 2, canvas.height + wallThickness / 2,
+                       canvas.width, wallThickness, { isStatic: true }),
+      Bodies.rectangle(canvas.width / 2, -wallThickness / 2,
+                       canvas.width, wallThickness, { isStatic: true }),
+      Bodies.rectangle(-wallThickness / 2, canvas.height / 2,
+                       wallThickness, canvas.height, { isStatic: true }),
+      Bodies.rectangle(canvas.width + wallThickness / 2, canvas.height / 2,
+                       wallThickness, canvas.height, { isStatic: true })
+    ];
+    Composite.add(world, walls);
+
+    // Explosion function
+    function triggerExplosion() {
+      if (explosionTriggered) return;
+      explosionTriggered = true;
+
+      // Remove all walls
+      walls.forEach(wall => Composite.remove(world, wall));
+
+      // Center of canvas
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+
+      // Apply outward force to all balls (less intense)
+      balls.forEach(({ ball }) => {
+        const dx = ball.position.x - centerX;
+        const dy = ball.position.y - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const forceMagnitude = 0.015; // Less intense explosion
+
+        Body.applyForce(ball, ball.position, {
+          x: (dx / dist) * forceMagnitude,
+          y: (dy / dist) * forceMagnitude
+        });
+      });
+
+      // Function to check if all balls are off screen
+      function areBallsOffScreen() {
+        const padding = 100; // Extra padding to ensure balls are well off screen
+        return balls.every(({ ball }) => {
+          return ball.position.x < -padding ||
+                 ball.position.x > canvas.width + padding ||
+                 ball.position.y < -padding ||
+                 ball.position.y > canvas.height + padding;
+        });
+      }
+
+      // Check periodically if balls are off screen
+      const checkInterval = setInterval(() => {
+        if (areBallsOffScreen()) {
+          clearInterval(checkInterval);
+          // Clear canvas to white
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          // Remove balls from world
+          balls.forEach(({ ball }) => Composite.remove(world, ball));
+          balls.length = 0;
+        }
+      }, 100); // Check every 100ms
+
+      // Safety timeout in case some balls get stuck
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (balls.length > 0) {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          balls.forEach(({ ball }) => Composite.remove(world, ball));
+          balls.length = 0;
+        }
+      }, 5000); // 5 second maximum wait
+    }
+
+    // ------------------------------------------
+    // 3. "Pop" new balls
+    // ------------------------------------------
+    const COLORS = ['#ff66b2', '#66ff99', '#66ccff', '#ffd966', '#ff8c66', '#c266ff'];
+
+    const balls = []; // Track all balls
+
+    let minPopForce = 6;    // slightly higher minimum
+    let maxPopForce = 14;   // much lower maximum
+
+    // Helper to estimate fullness (returns 0 to 1)
+    function getFillFraction() {
+      const canvasArea = canvas.width * canvas.height;
+      const ballsArea = balls.reduce((sum, b) => sum + Math.PI * b.radius * b.radius, 0);
+      return Math.min(1, ballsArea / (0.01 * canvasArea)); // normalized to 0.01 max (1%)
+    }
+
+    // Helper to check if screen is "full" (now 1%)
+    function isScreenFull() {
+      const canvasArea = canvas.width * canvas.height;
+      const ballsArea = balls.reduce((sum, b) => sum + Math.PI * b.radius * b.radius, 0);
+      return ballsArea > 0.01 * canvasArea; // 1% full
+    }
+
+    function popBall () {
+      if (explosionTriggered) return;
+      if (isScreenFull()) {
+        triggerExplosion();
+        return;
+      }
+
+      // random size 20 – 50 px
+      const radius = 20 + Math.random() * 30;
+      // random x so it doesn't always shoot up the middle
+      const x = radius + Math.random() * (canvas.width - 2 * radius);
+      const y = canvas.height + radius + 10;      // start *just* off-screen
+      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+      // Quadratic pop force: strongest at empty, softest at full
+      const fill = getFillFraction(); // 0 to 1
+      const popForce = minPopForce + (maxPopForce - minPopForce) * Math.pow(1 - fill, 2);
+
+      // Keep balls very light and bouncy
+      const density = 0.00005;
+      const restitution = 0.98;
+
+      const ball = Bodies.circle(x, y, radius, {
+        restitution: restitution,
+        friction: 0.002,
+        density: density,
+        render: { fillStyle: color }
+      });
+
+      Composite.add(world, ball);
+      balls.push({ ball, radius });
+
+      // initial upward "pop" plus a tiny horizontal nudge
+      Body.setVelocity(ball, {
+        x: (Math.random() - 0.5) * 2,
+        y: -popForce - Math.random() * popForce
+      });
+    }
+
+    // Helper to estimate fullness
+    function isScreenFull() {
+      const canvasArea = canvas.width * canvas.height;
+      const ballsArea = balls.reduce((sum, b) => sum + Math.PI * b.radius * b.radius, 0);
+      return ballsArea > 0.95 * canvasArea; // 95% full (reduced by 5%)
+    }
+
+    function smoothFreezeBalls() {
+      balls.forEach(({ ball }) => {
+        Body.setVelocity(ball, { x: 0, y: 0 });
+        Body.setAngularVelocity(ball, 0);
+        ball.isStatic = true; // Make the ball static so it doesn't move anymore
+      });
+    }
+
+    // Exponential pop: balls appear faster and faster
+    let popDelay = 800;           // initial delay in ms
+    const minDelay = 35;          // much faster minimum delay
+    const speedup = 0.9;         // tighter curve, pops speed up faster
+
+    function exponentialPop() {
+      popBall();
+      popDelay = Math.max(minDelay, popDelay * speedup);
+      setTimeout(exponentialPop, popDelay);
+    }
+
+    exponentialPop(); // start the exponential popping
+
+    // and pop whenever the user clicks / taps
+    window.addEventListener('mousedown', popBall);
+    window.addEventListener('touchstart', popBall);
+  </script>
+</body>
+</html>

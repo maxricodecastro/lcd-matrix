@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Glitch Text Effect</title>
+    <style>
+        body {
+            background: white;
+            color: #000000;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-size: 24px;
+        }
+        #glitch-text {
+            font-size: 32px;
+            letter-spacing: 1px;
+            max-width: 800px;
+            text-align: center;
+            line-height: 1.4;
+            padding: 20px;
+        }
+        .word-container {
+            display: inline-block;
+            visibility: hidden;
+            position: absolute;
+        }
+        .glitch-word {
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div id="glitch-text"></div>
+    <div id="measure" class="word-container"></div>
+
+    <script>
+        const glitchChars = [
+            '░', '▒', '▓', '│', '┤', '╡', '╢', '╖', '╕', '╣', '║', '╗', '╝',
+            '╜', '╛', '┐', '└', '┴', '┬', '├', '─', '┼', '╞', '╟', '╚', '╔',
+            '╩', '╦', '╠', '═', '╬', '╧', '╨', '╤', '╥', '╙', '╘', '╒', '╓',
+            '╫', '╪', '┘', '┌'
+        ];
+
+        const text = document.getElementById('glitch-text');
+        const measureDiv = document.getElementById('measure');
+        const originalText = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
+        let isGlitching = false;
+        let revealedWords = new Map();
+
+        // Split text into words while preserving spaces
+        const words = originalText.match(/\S+|\s+/g) || [];
+        
+        function getTextWidth(text) {
+            measureDiv.textContent = text;
+            return measureDiv.getBoundingClientRect().width;
+        }
+
+        function getGlitchCharsMatchingWidth(targetWidth, originalWord) {
+            let result = '';
+            let currentWidth = 0;
+            
+            while (currentWidth < targetWidth) {
+                const char = glitchChars[Math.floor(Math.random() * glitchChars.length)];
+                measureDiv.textContent = result + char;
+                currentWidth = measureDiv.getBoundingClientRect().width;
+                
+                if (currentWidth <= targetWidth) {
+                    result += char;
+                }
+            }
+            
+            // Ensure we match the original length if we're slightly off
+            while (getTextWidth(result) < getTextWidth(originalWord)) {
+                result += glitchChars[Math.floor(Math.random() * glitchChars.length)];
+            }
+            
+            return result;
+        }
+
+        function getGlitchChar() {
+            return glitchChars[Math.floor(Math.random() * glitchChars.length)];
+        }
+
+        function generateGlitchedText() {
+            return words.map((word, wordIndex) => {
+                if (word.trim() === '') return word; // Preserve spaces exactly
+                
+                if (!revealedWords.has(wordIndex)) {
+                    const glitchWord = getGlitchCharsMatchingWidth(getTextWidth(word), word);
+                    return `<span class="glitch-word">${glitchWord}</span>`;
+                }
+
+                // Handle partially revealed words
+                const revealedLetters = revealedWords.get(wordIndex);
+                const chars = word.split('').map((char, charIndex) => {
+                    if (revealedLetters.has(charIndex)) {
+                        return char;
+                    }
+                    return getGlitchChar();
+                }).join('');
+                
+                return `<span class="glitch-word">${chars}</span>`;
+            }).join('');
+        }
+
+        function revealText() {
+            if (isGlitching) return;
+            
+            isGlitching = true;
+            revealedWords.clear();
+            
+            let currentWordIndex = 0;
+            
+            function revealNextWord() {
+                if (currentWordIndex >= words.length) {
+                    isGlitching = false;
+                    return;
+                }
+
+                // Skip spaces
+                while (currentWordIndex < words.length && words[currentWordIndex].trim() === '') {
+                    revealedWords.set(currentWordIndex, new Set());
+                    currentWordIndex++;
+                }
+
+                if (currentWordIndex >= words.length) {
+                    isGlitching = false;
+                    return;
+                }
+
+                // Initialize the current word's revealed letters set
+                const currentWord = words[currentWordIndex];
+                revealedWords.set(currentWordIndex, new Set());
+                const revealedLetters = revealedWords.get(currentWordIndex);
+                
+                // Create array of letter indices to reveal randomly
+                const letterIndices = Array.from({ length: currentWord.length }, (_, i) => i);
+                
+                // Reveal letters one by one randomly
+                let lettersRevealed = 0;
+                
+                function revealNextLetter() {
+                    if (lettersRevealed >= currentWord.length) {
+                        currentWordIndex++;
+                        setTimeout(revealNextWord, 200);
+                        return;
+                    }
+
+                    // Pick a random unrevealed letter
+                    const remainingIndices = letterIndices.filter(i => !revealedLetters.has(i));
+                    const randomIndex = remainingIndices[Math.floor(Math.random() * remainingIndices.length)];
+                    revealedLetters.add(randomIndex);
+                    lettersRevealed++;
+
+                    // Update display
+                    text.innerHTML = generateGlitchedText();
+
+                    // Schedule next letter reveal
+                    setTimeout(revealNextLetter, 50 + Math.random() * 100);
+                }
+
+                // Start revealing letters
+                const glitchInterval = setInterval(() => {
+                    text.innerHTML = generateGlitchedText();
+                }, 50);
+
+                setTimeout(() => {
+                    clearInterval(glitchInterval);
+                    revealNextLetter();
+                }, 200);
+            }
+
+            // Start the reveal process
+            text.innerHTML = generateGlitchedText();
+            setTimeout(revealNextWord, 1000);
+        }
+
+        // Initialize with cryptic text
+        text.innerHTML = generateGlitchedText();
+
+        // Start reveal effect on hover
+        text.addEventListener('mouseover', () => {
+            if (!isGlitching) {
+                revealText();
+            }
+        });
+        
+        // Also trigger periodically
+        setInterval(() => {
+            if (!isGlitching) {
+                revealText();
+            }
+        }, 5000);
+
+        // Start first reveal after a delay
+        setTimeout(revealText, 2000);
+    </script>
+</body>
+</html> 
