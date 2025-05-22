@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>CRESTA LED Simulator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <style>
         body {
@@ -108,6 +109,7 @@
                 inset 0 0 0 1px rgba(0,0,0,0.1);
             
             transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
         }
         button:hover {
             background: linear-gradient(145deg, #e8e8e8, #d8d8d8);
@@ -154,6 +156,82 @@
         button.active::before {
             background: #3498db; /* Blue when active */
             box-shadow: 0 0 5px rgba(52, 152, 219, 0.3); /* Subtle glow for active state */
+        }
+
+        /* Mobile Optimizations */
+        @media (max-width: 768px) {
+            #display-case {
+                width: 90%;
+                height: 45vw;
+                margin: 10px auto;
+            }
+            
+            .controls-container {
+                width: 100%;
+                padding: 0 10px;
+                gap: 15px;
+            }
+            
+            #cresta-theme-controls, #cresta-background-controls {
+                gap: 12px; /* Reduced from 16px */
+                padding: 20px 8px; /* Reduced horizontal padding */
+            }
+            
+            button {
+                width: 36px; /* Reduced from 44px */
+                height: 36px;
+                touch-action: manipulation;
+            }
+            
+            button::after {
+                width: 32px; /* Adjusted for new button size */
+                height: 32px;
+            }
+            
+            button::before {
+                width: 10px; /* Slightly reduced indicator */
+                height: 10px;
+            }
+            
+            .button-label {
+                font-size: 11px;
+            }
+            
+            .section-label {
+                font-size: 11px;
+                top: 0;
+            }
+            
+            #matrix-label {
+                font-size: 12px;
+                top: 10px;
+                left: 10px;
+            }
+
+            .button-container {
+                gap: 6px; /* Reduced gap between button and label */
+            }
+        }
+
+        /* Small mobile devices */
+        @media (max-width: 380px) {
+            #cresta-theme-controls, #cresta-background-controls {
+                gap: 8px; /* Further reduced gap */
+            }
+            
+            button {
+                width: 32px; /* Slightly smaller for very small screens */
+                height: 32px;
+            }
+            
+            button::after {
+                width: 28px;
+                height: 28px;
+            }
+            
+            .button-label {
+                font-size: 10px;
+            }
         }
     </style>
 </head>
